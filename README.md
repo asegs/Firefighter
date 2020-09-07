@@ -3,7 +3,7 @@ The spiritual successor to Hobo Encampment
 
 Play as a firefighter in a randomly generated house, trying to stop a fire before it spreads out of control!  With complex difficulty settings, infinite scenarios to generate (multiple origin points, dry season/wet season, gas leaks, sealed off rooms, etc.) and an assortment of loadouts, this text based game will satisfy your inner firefighter.  Most of the game is still in development, but you can expect fast progress.
 # Coming update schedule:
-v1.01:
+v1.01:\n
   Bug fixes, code rewrites, functionality improvements
 v1.02:
   Wall demolition, smoke and fire damage, fire extinguishing, gas leak explosion, gas leak shutoff
