@@ -294,82 +294,55 @@ def move_player(direction,distance=1):
         return grid
 
 
-def reveal_map():
+
+def get_xy_dist(row,col):
+    global player_row
+    global player_col
+    return [col-player_col,player_row-row]
+
+
+def get_angle_of_dist(xdist,ydist):
+    return math.degrees(math.atan2(ydist,xdist))
+
+
+
+def reveal_radial(width=30,stoppers=["#","O","X","x"]):
+    to_reveal =[]
+    global player_row
+    global player_col
     global visible
-    global grid
-    ##check right
-    counter = 0
-    while grid[player_row][player_col+counter]!="#" and grid[player_row][player_col+counter]!="O":
-        visible[player_row][player_col+counter] = grid[player_row][player_col+counter]
-        counter+=1
-        sub_counter = 0
-        while grid[player_row+sub_counter][player_col+counter]!="#" and grid[player_row+sub_counter][player_col+counter]!="O":
-            visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-            sub_counter+=1
-        visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-        sub_counter = 0
-        while grid[player_row+sub_counter][player_col+counter]!="#" and grid[player_row+sub_counter][player_col+counter]!="O":
-            visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-            sub_counter-=1
-        visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-        
-    visible[player_row][player_col+counter] = grid[player_row][player_col+counter]
-    ##check left
-    counter = 0
-    while grid[player_row][player_col+counter]!="#" and grid[player_row][player_col+counter]!="O":
-        visible[player_row][player_col+counter] = grid[player_row][player_col+counter]
-        counter-=1
-        sub_counter = 0
-        while grid[player_row+sub_counter][player_col+counter]!="#" and grid[player_row+sub_counter][player_col+counter]!="O":
-            visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-            sub_counter+=1
-        visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-        sub_counter = 0
-        while grid[player_row+sub_counter][player_col+counter]!="#" and grid[player_row+sub_counter][player_col+counter]!="O":
-            visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-            sub_counter-=1
-        visible[player_row+sub_counter][player_col+counter] = grid[player_row+sub_counter][player_col+counter]
-        
-    visible[player_row][player_col+counter] = grid[player_row][player_col+counter]
-
-    ##check down
-    counter = 0
-    while grid[player_row+counter][player_col]!="#" and grid[player_row+counter][player_col]!="O":
-        visible[player_row+counter][player_col] = grid[player_row+counter][player_col]
-        counter+=1
-        sub_counter = 0
-        while grid[player_row+counter][player_col+sub_counter]!="#" and grid[player_row+counter][player_col+sub_counter]!="O":
-            visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-            sub_counter+=1
-        visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-        sub_counter = 0
-        while grid[player_row+counter][player_col+sub_counter]!="#" and grid[player_row+counter][player_col+sub_counter]!="O":
-            visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-            sub_counter-=1
-        visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-        
-    visible[player_row+counter][player_col] = grid[player_row+counter][player_col]
-
-    ##check down
-    counter = 0
-    while grid[player_row+counter][player_col]!="#" and grid[player_row+counter][player_col]!="O":
-        visible[player_row+counter][player_col] = grid[player_row+counter][player_col]
-        counter-=1
-        sub_counter = 0
-        while grid[player_row+counter][player_col+sub_counter]!="#" and grid[player_row+counter][player_col+sub_counter]!="O":
-            visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-            sub_counter+=1
-        visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-        sub_counter = 0
-        while grid[player_row+counter][player_col+sub_counter]!="#" and grid[player_row+counter][player_col+sub_counter]!="O":
-            visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-            sub_counter-=1
-        visible[player_row+counter][player_col+sub_counter] = grid[player_row+counter][player_col+sub_counter]
-        
-    visible[player_row+counter][player_col] = grid[player_row+counter][player_col]
+    count = int(360/width)
+    buckets = [[] for i in range(count)]
+    shortest_blocks = [10000 for i in range(count)]
+    for row in range(0,map_height):
+        for col in range(0,map_width):
+            dist = get_xy_dist(row,col)
+            angle = get_angle_of_dist(dist[0],dist[1])
+            if dist[1]<0:
+                angle+=360
+            value = grid[row][col]
+            distance = math.sqrt(dist[0]**2+dist[1]**2)
+            buckets[(int(angle/width))].append([row,col,distance,value])
+    block_counter=0
+    for bucket in buckets:
+        shortest_block = 10000
+        for row in bucket:
+            if abs(row[2])<shortest_block and row[3] in stoppers:
+                shortest_block = abs(row[2])
+        shortest_blocks[block_counter]=shortest_block
+        block_counter+=1
+    block_counter = 0
+    for bucket in buckets:
+        for i in range(0,len(bucket)):
+            if bucket[i][2]<=shortest_blocks[block_counter]:
+                to_reveal.append([bucket[i][0],bucket[i][1]])
+    for piece in to_reveal:
+        visible[piece[0]][piece[1]] = grid[piece[0]][piece[1]]
+                
+    
 
 
-def smoke_vision(r=1):
+def smoke_vision(r=5):
     global player_row
     global player_col
     global visible
@@ -377,12 +350,14 @@ def smoke_vision(r=1):
         for j in range(0,map_width):
             dist = get_distance(get_absolute_pos(player_row,player_col),get_absolute_pos(i,j))
             if dist<=r:
-                if get_absolute_pos(i,j) in objects:
+                if dist==0:
+                    visible[i][j]="@"
+                elif get_absolute_pos(i,j) in objects:
                     visible[i][j] = objects[get_absolute_pos(i,j)]
                 elif grid[i][j]=="O":
                     visible[i][j] = " "
-                elif dist==0:
-                    visible[i][j]="@"
+                else:
+                    visible[i][j]=grid[i][j]
             
 
 
@@ -402,20 +377,17 @@ draw_rooms()
 create_fire()
 spread_fire()
 populate()
-reveal_map()
+reveal_radial()
 while True:
-    direction = input("Direction?:")
-    grid = move_player(direction)
     for i in range(0,30):
         print("")
-    print(player_row)
-    print(player_col)
     spread_fire(0.01,0.1)
-    reveal_map()
+    reveal_radial()
     update_visible()
     smoke_vision()
-    print_grid()
     print_visible()
+    direction = input("Direction?:")
+    grid = move_player(direction)
 
 
 """
