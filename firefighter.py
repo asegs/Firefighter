@@ -54,6 +54,11 @@ def print_visible():
             string+=" Carrying: "+carrying
         if i<len(equipped_gear)+3 and i>2:
             string+=" Tool "+str(i-2)+".) "+equipped_gear[i-3]
+        if i==len(equipped_gear)+3:
+            word = ""
+            for key in saved:
+                word+=" "+saved[key]
+            string+=" Saved: "+word
         print(string)
 
 
@@ -139,6 +144,7 @@ def erode_smoke(tolerance=2):
                 
                 if count<=tolerance:
                     grid[row][col] = " "
+                    del smoke[get_absolute_pos(row,col)]
 
 
 def draw_rooms(count=10,width_max=12,height_max=12,growth_percent=0.9,door_max=2):
@@ -610,6 +616,7 @@ def use_defuser():
 def use_extinguisher():
     global grid
     global status
+    global fire
     if not can_extinguish or carrying!="":
         return grid
     direction = input("Enter the direction of the fire to put out:")
@@ -618,6 +625,7 @@ def use_extinguisher():
         if grid[coords[0]][coords[1]]=="X":
             grid[coords[0]][coords[1]]=" "
             status = "Fire put out."
+            del fire[get_absolute_pos(coords[0],coords[1])]
             return grid
     except:
         return grid
@@ -672,7 +680,7 @@ def carry():
         carrying = objects[get_absolute_pos(coords[0],coords[1])]
         status="Picked up a "+carrying
         del objects[get_absolute_pos(coords[0],coords[1])]
-        grid[coords[0]][coords[1]]=""
+        grid[coords[0]][coords[1]]=" "
     except:
         pass
     return grid
@@ -720,6 +728,7 @@ def clean():
     for pair in pairs:
         valid = get_all_type_within_distance("O",pair[0],pair[1],4)
         for two in valid:
+            del smoke[get_absolute_pos(two[0],two[1])]
             grid[two[0]][two[1]] = " "
 
 
