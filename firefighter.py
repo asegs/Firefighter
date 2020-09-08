@@ -26,6 +26,7 @@ health = 100
 breaths = 0
 living = 0
 done = False
+read_help = False
 carrying = ""
 status = "Welcome."
 breakers = ["Wrecker bar","Heavy axe","Long range wall wrecker"]
@@ -816,6 +817,7 @@ def survival():
 
 def handler(inp):
     global grid
+    global read_help
     if inp=="w" or inp=="a" or inp=="s" or inp=="d":
         move_player(inp)
         return grid
@@ -834,7 +836,7 @@ def handler(inp):
     elif inp=="f" and carrying!="":
         return drop()
     elif inp=="h":
-        print("WASD to move,E to extinguish,F to carry/drop,P to place wall,C to place cleaner,B to break wall")
+        read_help=False
         return grid
     else:
         return grid
@@ -865,7 +867,6 @@ generate_scenario()
 reveal_radial()
 select_loadout()
 turns = 0
-read_help = False
 while not done:
     for i in range(0,30):
         print("")
