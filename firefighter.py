@@ -7,9 +7,29 @@ visible = [["?" for i in range(map_width)] for j in range(map_height)]
 smoke = {}
 fire = {}
 objects = {}
+tools = {}
+saved = {}
+equipped_gear=[]
 player_row = -1
 player_col = -1
 player_pos = " "
+vision = 1
+weight = 1
+breathing = 0
+protection = 0
+has_breaker = False
+can_diffuse = False
+can_extinguish = False
+can_place_wall = False
+can_place_cleaner = False
+health = 100
+breaths = 0
+living = 0
+done = False
+carrying = ""
+status = "Welcome."
+breakers = ["Wrecker bar","Heavy axe","Long range wall wrecker"]
+extinguishers = ["Light extinguisher","Heavy extinguisher"]
 def print_grid():
     global grid
     for i in range(0,map_height):
@@ -25,8 +45,15 @@ def print_visible():
         string=""
         for j in range(0,map_width):
             string+=visible[i][j]
+        if i==0:
+            string+=" "+status
+        if i==1:
+            string+=" Health: "+str(health)
+        if i==2:
+            string+=" Carrying: "+carrying
+        if i<len(equipped_gear)+3 and i>2:
+            string+=" Tool "+str(i-2)+".) "+equipped_gear[i-3]
         print(string)
-
 
 
 def give_borders():
@@ -75,6 +102,42 @@ def if_borders(borders,row,col,diag=False):
         has_border = is_object(borders,row-1,col-1) or is_object(borders,row+1,col-1) or is_object(borders,row-1,col+1) or is_object(borders,row+1,col+1)
     return has_border or is_object(borders,row-1,col) or is_object(borders,row,col-1) or is_object(borders,row,col+1) or is_object(borders,row+1,col)
 
+
+def count_borders(obj,row,col,diag=True):
+    count = 0
+    for i in range(-1,2):
+        try:
+            if grid[row-1][col+i]==obj:
+                count+=1
+        except:
+            count =count
+        try:
+            if grid[row+1][col+i]==obj:
+                count+=1
+        except:
+            count=count
+    try:
+        if grid[row][col-1]==obj:
+            count+=1
+    except:
+        count+=1
+    try:
+        if grid[row][col+1]==obj:
+            count+=1
+    except:
+        count +=1
+    return count
+
+
+def erode_smoke(tolerance=2):
+    for row in range(0,map_height):
+        for col in range(0,map_width):
+            if grid[row][col] == "O":
+                count = count_borders("O",row,col)
+                count += count_borders("X",row,col)
+                
+                if count<=tolerance:
+                    grid[row][col] = " "
 
 
 def draw_rooms(count=10,width_max=12,height_max=12,growth_percent=0.9,door_max=2):
@@ -147,7 +210,50 @@ def make_border_arr(absolute,diag=True):
         return full_borders
     else:
         return borders
-    
+
+
+def get_all_within_distance(row,col,dist=3):
+    valid = []
+    for i in range(0,map_height):
+        for j in range(0,map_width):
+            xdist = row-i
+            ydist = col-j
+            distance = math.sqrt(xdist**2+ydist**2)
+            if distance<dist:
+                valid.append([i,j])
+    return valid
+
+
+def get_all_type_within_distance(obj,row,col,dist=3):
+    valid = []
+    for i in range(0,map_height):
+        for j in range(0,map_width):
+            xdist = row-i
+            ydist = col-j
+            distance = math.sqrt(xdist**2+ydist**2)
+            if distance<dist and grid[i][j]==obj:
+                valid.append([i,j])
+    return valid
+
+
+
+def explosion(row,col,fire_chance=0.25):
+    global health
+    global status
+    valid = get_all_within_distance(row,col,4)
+    for pair in valid:
+        if random.random()<fire_chance:
+            if grid[pair[0]][pair[1]]=="G":
+                status+=" BOOM!"
+                explosion(pair[0],pair[1])
+            elif grid[pair[0]][pair[1]]=="@":
+                health = int(health/2)
+            grid[pair[0]][pair[1]] = "X"
+            in_flame +=1
+            try:
+                del objects[get_absolute_pos(pair[0],pair[1])]
+            except:
+                pass
 
 
 def spread_fire(fire_chance=0.2,smoke_chance=0.3):
@@ -162,6 +268,13 @@ def spread_fire(fire_chance=0.2,smoke_chance=0.3):
                 grid[pair[0]][pair[1]] = "O"
                 smoke[get_absolute_pos(pair[0],pair[1])] ="O"
             if random.random()<fire_chance:
+                try:
+                    if objects[get_absolute_pos(pair[0],pair[1])]=="G":
+                        status = "BOOM!"
+                        explosion(pair[0],pair[1])
+                        grid[pair[0]][pair[1]]="X"
+                except:
+                    pass
                 grid[pair[0]][pair[1]] = "X"
                 to_add_fire.append(get_absolute_pos(pair[0],pair[1]))
     for absolute in smoke:
@@ -178,7 +291,7 @@ def spread_fire(fire_chance=0.2,smoke_chance=0.3):
             
         
 
-def create_fire(count=1,cycles=10,fire_chance=0.03,smoke_chance=0.4):
+def create_fire(count=1,cycles=10,fire_chance=0.03,smoke_chance=0.05):
     global grid
     for i in range(0,count):
         coords = pick_random_coords()
@@ -209,6 +322,7 @@ def get_coords_away_from_fire(dist=5):
                 safe = False
         if safe:
             return coords
+
 
 
 def populate(people=1,children=1,babies=1,animals=1,gas_tanks=3):
@@ -242,9 +356,9 @@ def populate(people=1,children=1,babies=1,animals=1,gas_tanks=3):
             grid[coords[0]][coords[1]] = "G"
         objects[get_absolute_pos(coords[0],coords[1])]="G"
     coords = get_coords_away_from_fire()
-    player_pos = grid[coords[0]][coords[1]]
-    grid[coords[0]][coords[1]]="@"
-    player_row = coords[0]
+    player_pos = grid[map_height-1][coords[1]]
+    grid[map_height-1][coords[1]]="@"
+    player_row = map_height-1
     player_col = coords[1]
 
 
@@ -274,14 +388,18 @@ def move_player(direction,distance=1):
     global player_col
     global grid
     global player_pos
+    global done
     coords = select_new(direction)
     new_row = coords[0]
     new_col = coords[1]
     try:
+        if new_col<0 or new_row<0 or new_row>=map_height or new_col>=map_width:
+            finish = input("Leave house? (y/n):")
+            if finish=="y":
+                done = True
+            return grid
         original_tile = player_pos
         new_pos = grid[new_row][new_col]
-        if new_col<0 or new_row<0 or new_row>map_height or new_col>map_width:
-            return grid
         if grid[new_row][new_col]=="#":
             return grid
         grid[player_row][player_col] = player_pos
@@ -342,7 +460,7 @@ def reveal_radial(width=30,stoppers=["#","O","X","x"]):
     
 
 
-def smoke_vision(r=5):
+def smoke_vision(r=2):
     global player_row
     global player_col
     global visible
@@ -369,27 +487,407 @@ def update_visible(smoke_vision=2):
             if visible[row][col]!="?" and visible[row][col]!="#":
                 visible[row][col] = grid[row][col]
 
+
+
+def is_numeric(string):
+    try:
+        int(string)
+        return True
+    except:
+        return False
+
+def select_loadout():
+    global equipped_gear
+    global breathing
+    global protection
+    global weight
+    global vision
+    global has_breaker
+    global can_diffuse
+    global can_extinguish
+    global can_place_wall
+    global can_place_cleaner
+    gear = ["Wrecker bar, breaks walls, speed 1, weight 1","Heavy axe, breaks walls speed 3, weight 2","Audio enhancer, locates people, weight 2","Light extinguisher, puts out fires, uses 3, weight 1","Heavy extinguisher, puts out fires, uses 10, weight 5","Smoke clearer, dissapates nearby smoke, uses 3, weight 1","Gas diffuser, neutralizes gas pipes, uses 3, weight 1","Oxygen tank, use on self or dying person, uses 2, weight 1","Long range wall wrecker, break wall from a distance, uses 1, weight 3","Temp wall, fill in a space to stop smoke,uses 3,weight 5"]
+    print("You may have one head piece, one body piece, and several pieces of gear.")
+    head = input("For your head piece, would you like thermal goggles/mouthpiece (4 vision, 2 breathing, 1 weight 'g') or a rebreather (1 vision, 5 breathing, 3 weight 'r':")
+    body = input("For your body, would you like light gear (allows 5 gear, 1 protection, 1 weight 'l'), firefighter suit (allows 4 gear, 3 protection, 3 weight 'f'), or a heavy duty suit (allows 3 gear, 10 protection, 5 weight 'h':")
+    if head=="g":
+        equipped_gear.append("Thermal goggles")
+        vision = 4
+        breathing = 2
+        weight = 1
+    else:
+        equipped_gear.append("Rebreather")
+        vision = 1
+        breathing = 5
+        weight = 3
+    if body=="l":
+        equipped_gear.append("Light suit")
+        gear_max = 5
+        protection = 1
+        weight+=1
+    elif body=="f":
+        equipped_gear.append("Firefighter suit")
+        gear_max = 4
+        protection = 3
+        weight+=3
+    else:
+        equipped_gear.append("Heavy suit")
+        gear_max = 3
+        protection = 10
+        weight+=5
+    counter = 0
+    while counter<gear_max:
+        for b in range(0,len(gear)):
+            print(str(b)+".) "+gear[b])
+        select = input("Choose an element from the list:")
+        if is_numeric(select) and int(select)<len(gear) and int(select)>=0:
+            thing = (gear[int(select)].split(","))[0]
+            equipped_gear.append(thing)
+            if thing in breakers:
+                has_breaker = True
+            elif thing=="Gas diffuser":
+                can_diffuse = True
+            elif thing in extinguishers:
+                can_extinguish = True
+            elif thing=="Temp wall":
+                can_place_wall = True
+            elif thing=="Smoke clearer":
+                can_place_cleaner = True
+            weight+=int((gear[int(select)].split("weight "))[1])
+            del gear[int(select)]
+            counter+=1
+        else:
+            pass
+
+
+
+def use_breaker():
+    global grid
+    global status
+    global objects
+    if not has_breaker or carrying!="":
+        return grid
+    direction = input("Enter the direction of the wall to break:")
+    coords = select_new(direction)
+    try:
+        if grid[coords[0]][coords[1]]=="#":
+            grid[coords[0]][coords[1]]=" "
+            status = "Wall demolished."
+    except:
+        pass
+    try:
+        if objects[get_absolute_pos(coords[0],coords[1])]!="G":
+            del objects[get_absolute_pos(coords[0],coords[1])]
+            grid[coords[0]][coords[1]] = " "
+            status = "Bashed someone."
+    except:
+        pass
+    return grid
+
+
+def use_defuser():
+    global grid
+    global status
+    global objects
+    if not can_diffuse or carrying!="":
+        return grid
+    direction = input("Enter the direction of the gas to defuse:")
+    coords = select_new(direction)
+    try:
+        if objects[get_absolute_pos(coords[0],coords[1])]=="G":
+            grid[coords[0]][coords[1]]=" "
+            del objects[get_absolute_pos(coords[0],coords[1])]
+            status = "Gas defused."
+            return grid
+    except:
+        return grid
+    finally:
+        return grid
+
+
+def use_extinguisher():
+    global grid
+    global status
+    if not can_extinguish or carrying!="":
+        return grid
+    direction = input("Enter the direction of the fire to put out:")
+    coords = select_new(direction)
+    try:
+        if grid[coords[0]][coords[1]]=="X":
+            grid[coords[0]][coords[1]]=" "
+            status = "Fire put out."
+            return grid
+    except:
+        return grid
+    finally:
+        return grid
+
+def use_temp_wall():
+    global grid
+    global status
+    if not can_place_wall or carrying!="":
+        return grid
+    direction = input("Enter the direction of the wall to place:")
+    coords = select_new(direction)
+    try:
+        if grid[coords[0]][coords[1]]==" " or grid[coords[0]][coords[1]]=="O":
+            grid[coords[0]][coords[1]]="#"
+            status = "Wall placed."
+            return grid
+    except:
+        return grid
+    finally:
+        return grid
+
+def place_cleaner():
+    global grid
+    global status
+    global tools
+    if not can_place_cleaner or carrying!="":
+        return grid
+    direction = input("Enter the direction of the cleaner to place:")
+    coords = select_new(direction)
+    try:
+        if grid[coords[0]][coords[1]]==" " or grid[coords[0]][coords[1]]=="O":
+            grid[coords[0]][coords[1]]="V"
+            status = "Cleaner placed."
+            tools[get_absolute_pos(coords[0],coords[1])] = "V"
+            return grid
+    except:
+        return grid
+    finally:
+        return grid
+
+
+def carry():
+    global grid
+    global status
+    global objects
+    global carrying
+    direction = input("Enter the direction of the thing to pick up:")
+    coords = select_new(direction)
+    try:
+        carrying = objects[get_absolute_pos(coords[0],coords[1])]
+        status="Picked up a "+carrying
+        del objects[get_absolute_pos(coords[0],coords[1])]
+        grid[coords[0]][coords[1]]=""
+    except:
+        pass
+    return grid
+        
+
+
+def drop():
+    global grid
+    global status
+    global objects
+    global carrying
+    if carrying=="":
+        return grid
+    direction = input("Enter the direction to drop them in:")
+    coords = select_new(direction)
+    try:
+        if coords[0]<0 or coords[1]<0 or coords[0]>=map_height or coords[1]>=map_width:
+            saved[len(saved)]=carrying
+            status="Saved "+carrying
+            carrying=""
+            return grid
+        if grid[coords[0]][coords[1]]=="X":
+            status="Threw "+carrying+" into the fire."
+            carrying=""
+            return grid
+        grid[coords[0]][coords[1]]=carrying
+        objects[get_absolute_pos(coords[0],coords[1])]=carrying
+        status="Put "+carrying+" down."
+        carrying=""
+        return grid
+    except:
+        pass
+    return grid
+        
     
 
+
+
+def clean():
+    pairs = []
+    for key in tools:
+        if tools[key]=="V":
+            coords = get_coords_from_abs(key)
+            pairs.append([coords[0],coords[1]])
+    for pair in pairs:
+        valid = get_all_type_within_distance("O",pair[0],pair[1],4)
+        for two in valid:
+            grid[two[0]][two[1]] = " "
+
+
+def generate_scenario():
+    global living
+    phone_call = "Help!  My house is on fire!"
+    rooms = random.randint(1,14)
+    room_size = random.randint(3,15)
+    origins = random.randint(1,3)
+    spread_mult = random.randint(1,3)
+    people = random.randint(0,5)
+    children = random.randint(0,3)
+    babies = random.randint(0,3)
+    pets = random.randint(0,3)
+    gas = random.randint(1,5)
+    time = random.randint(1,30)
+    living = people+children+babies+pets
+    total = living+rooms+room_size+origins+spread_mult+gas+int(time/6)
+    give_borders()
+    draw_rooms(rooms,room_size,room_size)
+    create_fire(origins,time,0.001*spread_mult,0.004)
+    spread_fire()
+    populate(people,children,babies,pets,gas)
+    if rooms<5:
+        phone_call+="  It's a big open space."
+    elif rooms<8:
+        phone_call+="  It's a normal house layout."
+    else:
+        phone_call+="  It's really cramped.  We have a lot of junk in there."
+    if room_size<6:
+        phone_call+="  Be sure to check all our closets!"
+    elif room_size<10:
+        phone_call+="  You should have space in the rooms."
+    else:
+        phone_call+="  The rooms are giant, be careful!"
+    if origins==1:
+        phone_call+="  I think it's just one fire."
+    elif origins<4:
+        phone_call+="  I left at least two candles burning."
+    else:
+        phone_call+="  It was during an indoor candlelight vigil."
+    if spread_mult==1:
+        phone_call+="  Luckily, our house has flame retardant."
+    else:
+        phone_call+="  That house is bone dry.  Good luck."
+    if people<3:
+        phone_call+="  There shouldn't be too many adults there."
+    elif people<5:
+        phone_call+="  There will be as many as 4 adults."
+    else:
+        phone_call+="  We were having a house party."
+    if children<2:
+        phone_call+="  My kids are home."
+    else:
+        phone_call+="  My kids also had some friends over."
+    if babies<2:
+        phone_call+="  I don't think any babies were home."
+    else:
+        phone_call+="  My babies and our neighbors babies are in there!"
+    if pets<2:
+        phone_call+="  I think our dog is in there!"
+    else:
+        phone_call+="  Please rescue all of my chonkers!"
+    if gas<3:
+        phone_call+="  There shouldn't be too much gas stuff in there."
+    else:
+        phone_call+="  We run a lot of gas pipes, stay safe!"
+    if time<10:
+        phone_call+="  It hasn't been on fire for that long."
+    elif time<20:
+        phone_call+="  It's been on fire for 10 minutes already!"
+    else:
+        phone_call+="  I got home and could see the flames from the road!"
+    phone_call+="[This house has a difficulty of "+str(int((total/59)*100))+"%]"
+    print(phone_call)
+
+
+def survival():
+    global health
+    global breaths
+    if player_pos != "O" and player_pos!="X":
+        breaths = breathing
+        if health<100:
+            health+=5
+        if health>100:
+            health = 100
+    if breaths<=0:
+        health-=7
+    if player_pos == "O":
+        breaths-=1
+    if player_pos == "X":
+        health-=(10-protection)
+    
+
+
+def handler(inp):
+    global grid
+    if inp=="w" or inp=="a" or inp=="s" or inp=="d":
+        move_player(inp)
+        return grid
+    elif inp=="b":
+        return use_breaker()
+    elif inp=="g":
+        return use_defuser()
+    elif inp=="e":
+        return use_extinguisher()
+    elif inp=="p":
+        return use_temp_wall()
+    elif inp=="c":
+        return place_cleaner()
+    elif inp=="f" and carrying=="":
+        return carry()
+    elif inp=="f" and carrying!="":
+        return drop()
+    elif inp=="h":
+        print("WASD to move,E to extinguish,F to carry/drop,P to place wall,C to place cleaner,B to break wall")
+        return grid
+    else:
+        return grid
+
+
+def get_burnt():
+    total = map_height*map_width
+    count = 0
+    for i in range(0,map_height):
+        for j in range(0,map_width):
+            if grid[i][j]=="X":
+                count+=1
+    return count/total
+
+
+def score():
+    global living
+    global saved
+    saved_percent = int((len(saved)/living)*100)
+    burnt_percent = int(get_burnt()*100)
+    print("Saved "+str(saved_percent)+"% of the living things.")
+    print(str(burnt_percent)+"% of the house was burnt.")
+    score = int(((100-burnt_percent)+saved_percent)/2)
+    print("Your total score was "+str(score))
     
 give_borders()
-draw_rooms()
-create_fire()
-spread_fire()
-populate()
+generate_scenario()
 reveal_radial()
-while True:
+select_loadout()
+turns = 0
+read_help = False
+while not done:
     for i in range(0,30):
         print("")
-    spread_fire(0.01,0.1)
+    for i in range(0,turns):
+        spread_fire(0.0003,0.001)
+    erode_smoke()
+    clean()
     reveal_radial()
     update_visible()
     smoke_vision()
+    survival()
+    if health<0:
+        print("You died.")
+        break
     print_visible()
-    direction = input("Direction?:")
-    grid = move_player(direction)
+    if not read_help:
+        print("WASD to move,E to extinguish,F to carry/drop,P to place wall,C to place cleaner,B to break wall")
+        read_help=True
+    move = input("Make your move:")
+    grid = handler(move)
+    turns = weight
+
+score()
 
 
-"""
-CLEAN UP REVEAL MAP
-"""
