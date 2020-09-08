@@ -144,7 +144,10 @@ def erode_smoke(tolerance=2):
                 
                 if count<=tolerance:
                     grid[row][col] = " "
-                    del smoke[get_absolute_pos(row,col)]
+                    try:
+                        del smoke[get_absolute_pos(row,col)]
+                    except:
+                        pass
 
 
 def draw_rooms(count=10,width_max=12,height_max=12,growth_percent=0.9,door_max=2):
@@ -562,7 +565,10 @@ def select_loadout():
             elif thing=="Smoke clearer":
                 can_place_cleaner = True
             weight+=int((gear[int(select)].split("weight "))[1])
-            del gear[int(select)]
+            try:
+                del gear[int(select)]
+            except:
+                pass
             counter+=1
         else:
             pass
@@ -728,8 +734,11 @@ def clean():
     for pair in pairs:
         valid = get_all_type_within_distance("O",pair[0],pair[1],4)
         for two in valid:
-            del smoke[get_absolute_pos(two[0],two[1])]
-            grid[two[0]][two[1]] = " "
+            try:
+                del smoke[get_absolute_pos(two[0],two[1])]
+                grid[two[0]][two[1]] = " "
+            except:
+                pass
 
 
 def generate_scenario():
@@ -870,7 +879,18 @@ def score():
     print(str(burnt_percent)+"% of the house was burnt.")
     score = int(((100-burnt_percent)+saved_percent)/2)
     print("Your total score was "+str(score))
-    
+
+
+
+def fix():
+    global grid
+    global visible
+    for i in range(0,map_height):
+        for j in range(0,map_width):
+            if grid[i][j]=="":
+                grid[i][j]=" "
+            if visible[i][j]=="":
+                visible=" "
 give_borders()
 generate_scenario()
 reveal_radial()
