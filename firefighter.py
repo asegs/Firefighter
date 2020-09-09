@@ -24,15 +24,19 @@ can_extinguish = False
 can_place_wall = False
 can_place_cleaner = False
 can_give_air = False
+can_search=False
+has_long = False
 health = 100
 breaths = 0
 living = 0
 done = False
 read_help = False
+direction=""
 carrying = ""
 status = "Welcome."
 breakers = ["Wrecker bar","Heavy axe","Long range wall wrecker"]
 extinguishers = ["Light extinguisher","Heavy extinguisher"]
+ppl = ["A","C","B","P"]
 def print_grid():
     global grid
     for i in range(0,map_height):
@@ -61,6 +65,8 @@ def print_visible():
             for key in saved:
                 word+=" "+saved[key]
             string+=" Saved: "+word
+        if i==len(equipped_gear)+4:
+            string+=" "+direction
         print(string)
 
 
@@ -226,6 +232,7 @@ def make_border_arr(absolute,diag=True):
 
 def get_all_within_distance(row,col,dist=3):
     valid = []
+    counter = 0
     for i in range(0,map_height):
         for j in range(0,map_width):
             xdist = row-i
@@ -233,6 +240,7 @@ def get_all_within_distance(row,col,dist=3):
             distance = math.sqrt(xdist**2+ydist**2)
             if distance<dist:
                 valid.append([i,j])
+                counter+=1
     return valid
 
 
@@ -254,6 +262,8 @@ def explosion(row,col,fire_chance=0.25):
     global status
     valid = get_all_within_distance(row,col,4)
     for pair in valid:
+        print(pair[0])
+        print(pair[1])
         if random.random()<fire_chance:
             if grid[pair[0]][pair[1]]=="G":
                 status+=" BOOM!"
@@ -527,6 +537,8 @@ def select_loadout():
     global can_place_wall
     global can_place_cleaner
     global can_give_air
+    global can_search
+    global has_long
     gear = ["Wrecker bar, breaks walls, speed 1, weight 1","Heavy axe, breaks walls speed 3, weight 2","Audio enhancer, locates people, weight 2","Light extinguisher, puts out fires, uses 3, weight 1","Heavy extinguisher, puts out fires, uses 10, weight 5","Smoke clearer, dissapates nearby smoke, uses 3, weight 1","Gas diffuser, neutralizes gas pipes, uses 3, weight 1","Oxygen tank, use on self or dying person, uses 2, weight 1","Long range wall wrecker, break wall from a distance, uses 1, weight 3","Temp wall, fill in a space to stop smoke,uses 3,weight 5"]
     print("You may have one head piece, one body piece, and several pieces of gear.")
     head = input("For your head piece, would you like thermal goggles/mouthpiece (4 vision, 2 breathing, 1 weight 'g') or a rebreather (1 vision, 5 breathing, 3 weight 'r':")
@@ -566,6 +578,8 @@ def select_loadout():
             equipped_gear.append(thing)
             if thing in breakers:
                 has_breaker = True
+                if thing=="Long range wall wrecker":
+                    has_long = True
             elif thing=="Gas diffuser":
                 can_diffuse = True
             elif thing in extinguishers:
@@ -576,6 +590,8 @@ def select_loadout():
                 can_place_cleaner = True
             elif thing=="Oxygen tank":
                 can_give_air = True
+            elif thing=="Audio enhancer":
+                can_search=True             
             weight+=int((gear[int(select)].split("weight "))[1])
             try:
                 del gear[int(select)]
@@ -587,18 +603,49 @@ def select_loadout():
 
 
 
+def select_long(direction):
+    global player_row
+    global player_col
+    coords = [player_row,player_col]
+    mvmt = []
+    if direction=="a":
+        mvmt = [0,-1]
+    elif direction=="w":
+        mvmt = [-1,0]
+    elif direction=="s":
+        mvmt = [1,0]
+    else:
+        mvmt = [0,1]
+    while True:
+        try:
+            coords = [coords[0]+mvmt[0],coords[1]+mvmt[1]]
+            orig_coords = coords
+            if coords[0]<0 or coords[1]<0 or coords[1]>=map_width or coords[0]>=map_height:
+                return orig_coords
+            val = grid[coords[0]][coords[1]]
+            if val=="#" or val in ppl or val=="G":
+                return coords
+        except:
+            return select_new(direction)
+
+
+
 def use_breaker():
     global grid
     global status
     global objects
     global air
+    global visible
     if not has_breaker or carrying!="":
         return grid
     direction = input("Enter the direction of the wall to break:")
     coords = select_new(direction)
+    if has_long:
+        coords = select_long(direction)
     try:
         if grid[coords[0]][coords[1]]=="#":
             grid[coords[0]][coords[1]]=" "
+            visible[coords[0]][coords[1]] = " "
             status = "Wall demolished."
     except:
         pass
@@ -607,7 +654,13 @@ def use_breaker():
             del objects[get_absolute_pos(coords[0],coords[1])]
             del air[get_absolute_pos(coords[0],coords[1])]
             grid[coords[0]][coords[1]] = " "
+            visible[coords[0]][coords[1]] = " "
             status = "Bashed someone."
+    except:
+        pass
+    try:
+        if grid[coords[0]][coords[1]] == "G":
+            explosion(coords[0],coords[1])
     except:
         pass
     return grid
@@ -783,6 +836,48 @@ def clean():
                 pass
 
 
+
+def get_nearest_npc():
+    global objects
+    global player_row
+    global player_col
+    shortest_dist = 10000
+    closest = 0
+    for key in objects:
+        coords = get_coords_from_abs(key)
+        xy = get_xy_dist(coords[0],coords[1])
+        dist = math.sqrt(xy[0]**2+xy[1]**2)
+        if dist<shortest_dist:
+            shortest_dist = dist
+            closest = key
+    return closest
+
+
+def search():
+    global can_search
+    global grid
+    global objects
+    global direction
+    if not can_search:
+        return grid
+    key = get_nearest_npc()
+    coords = get_coords_from_abs(key)
+    xy = get_xy_dist(coords[0],coords[1])
+    if abs(xy[0])>abs(xy[1]):
+        if xy[0]<0:
+            direction="<"
+        else:
+            direction=">"
+    else:
+        if xy[1]<0:
+            direction="v"
+        else:
+            direction="^"
+    return grid
+        
+    
+
+
 def generate_scenario():
     global living
     phone_call = "Help!  My house is on fire!"
@@ -900,6 +995,8 @@ def handler(inp):
         return grid
     elif inp=="t":
         return give_air()
+    elif inp=="l":
+        return search()
     else:
         return grid
 
@@ -960,6 +1057,9 @@ def fix():
                 grid[i][j]=" "
             if visible[i][j]=="":
                 visible=" "
+
+
+    
 give_borders()
 generate_scenario()
 reveal_radial()
