@@ -7,6 +7,7 @@ visible = [["?" for i in range(map_width)] for j in range(map_height)]
 smoke = {}
 fire = {}
 objects = {}
+air = {}
 tools = {}
 saved = {}
 equipped_gear=[]
@@ -262,6 +263,7 @@ def explosion(row,col,fire_chance=0.25):
             in_flame +=1
             try:
                 del objects[get_absolute_pos(pair[0],pair[1])]
+                del air[get_absolute_pos(pair[0],pair[1])]
             except:
                 pass
 
@@ -277,7 +279,7 @@ def spread_fire(fire_chance=0.2,smoke_chance=0.3):
             if random.random()<smoke_chance and grid[pair[0]][pair[1]]!="X" and grid[pair[0]][pair[1]]!="#":
                 grid[pair[0]][pair[1]] = "O"
                 smoke[get_absolute_pos(pair[0],pair[1])] ="O"
-            if random.random()<fire_chance:
+            if (random.random()<fire_chance and grid[pair[0]][pair[1]]!="#") or (random.random()<fire_chance/2):
                 try:
                     if objects[get_absolute_pos(pair[0],pair[1])]=="G":
                         status = "BOOM!"
@@ -340,31 +342,37 @@ def populate(people=1,children=1,babies=1,animals=1,gas_tanks=3):
     global player_row
     global player_col
     global player_pos
+    global objects
+    global air
     for i in range(0,people):
         coords = get_coords_away_from_fire()
         if grid[coords[0]][coords[1]]!="O":
             grid[coords[0]][coords[1]] = "A"
         objects[get_absolute_pos(coords[0],coords[1])]="A"
+        air[get_absolute_pos(coords[0],coords[1])] = 10
     for i in range(0,children):
         coords = get_coords_away_from_fire()
         if grid[coords[0]][coords[1]]!="O":
             grid[coords[0]][coords[1]] = "C"
         objects[get_absolute_pos(coords[0],coords[1])]="C"
+        air[get_absolute_pos(coords[0],coords[1])] = 7
     for i in range(0,babies):
         coords = get_coords_away_from_fire()
         if grid[coords[0]][coords[1]]!="O":
             grid[coords[0]][coords[1]] = "B"
         objects[get_absolute_pos(coords[0],coords[1])]="B"
+        air[get_absolute_pos(coords[0],coords[1])] = 5
     for i in range(0,animals):
         coords = get_coords_away_from_fire()
         if grid[coords[0]][coords[1]]!="O":
             grid[coords[0]][coords[1]] = "P"
         objects[get_absolute_pos(coords[0],coords[1])]="P"
+        air[get_absolute_pos(coords[0],coords[1])] = 7
     for i in range(0,gas_tanks):
         coords = get_coords_away_from_fire()
         if grid[coords[0]][coords[1]]!="O":
             grid[coords[0]][coords[1]] = "G"
-        objects[get_absolute_pos(coords[0],coords[1])]="G"
+        tools[get_absolute_pos(coords[0],coords[1])]="G"
     coords = get_coords_away_from_fire()
     player_pos = grid[map_height-1][coords[1]]
     grid[map_height-1][coords[1]]="@"
@@ -579,6 +587,7 @@ def use_breaker():
     global grid
     global status
     global objects
+    global air
     if not has_breaker or carrying!="":
         return grid
     direction = input("Enter the direction of the wall to break:")
@@ -592,6 +601,7 @@ def use_breaker():
     try:
         if objects[get_absolute_pos(coords[0],coords[1])]!="G":
             del objects[get_absolute_pos(coords[0],coords[1])]
+            del air[get_absolute_pos(coords[0],coords[1])]
             grid[coords[0]][coords[1]] = " "
             status = "Bashed someone."
     except:
@@ -608,9 +618,9 @@ def use_defuser():
     direction = input("Enter the direction of the gas to defuse:")
     coords = select_new(direction)
     try:
-        if objects[get_absolute_pos(coords[0],coords[1])]=="G":
+        if tools[get_absolute_pos(coords[0],coords[1])]=="G":
             grid[coords[0]][coords[1]]=" "
-            del objects[get_absolute_pos(coords[0],coords[1])]
+            del tools[get_absolute_pos(coords[0],coords[1])]
             status = "Gas defused."
             return grid
     except:
@@ -680,12 +690,14 @@ def carry():
     global status
     global objects
     global carrying
+    global air
     direction = input("Enter the direction of the thing to pick up:")
     coords = select_new(direction)
     try:
         carrying = objects[get_absolute_pos(coords[0],coords[1])]
         status="Picked up a "+carrying
         del objects[get_absolute_pos(coords[0],coords[1])]
+        del air[get_absolute_pos(coords[0],coords[1])]
         grid[coords[0]][coords[1]]=" "
     except:
         pass
@@ -714,6 +726,7 @@ def drop():
             return grid
         grid[coords[0]][coords[1]]=carrying
         objects[get_absolute_pos(coords[0],coords[1])]=carrying
+        air[get_absolute_pos(coords[0],coords[1])]=5
         status="Put "+carrying+" down."
         carrying=""
         return grid
@@ -882,6 +895,28 @@ def score():
 
 
 
+def people_die():
+    to_delete = []
+    global objects
+    global grid
+    global status
+    for key in objects:
+        coords = get_coords_from_abs(key)
+        if grid[coords[0]][coords[1]]=="X":
+            status=objects[key]+" burned to death."
+            to_delete.append(key)
+            del air[key]
+        elif grid[coords[0]][coords[1]]=="O":
+            air[key]-=1
+            if air[key]<0:
+                status=objects[key]+" suffocated."
+                to_delete.append(key)
+                del air[key]
+        else:
+            air[key]=5
+    for delete in to_delete:
+        del objects[delete]
+
 def fix():
     global grid
     global visible
@@ -910,6 +945,7 @@ while not done:
     if health<0:
         print("You died.")
         break
+    people_die()
     print_visible()
     if not read_help:
         print("WASD to move,E to extinguish,F to carry/drop,P to place wall,C to place cleaner,B to break wall")
