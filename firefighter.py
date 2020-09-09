@@ -23,6 +23,7 @@ can_diffuse = False
 can_extinguish = False
 can_place_wall = False
 can_place_cleaner = False
+can_give_air = False
 health = 100
 breaths = 0
 living = 0
@@ -525,6 +526,7 @@ def select_loadout():
     global can_extinguish
     global can_place_wall
     global can_place_cleaner
+    global can_give_air
     gear = ["Wrecker bar, breaks walls, speed 1, weight 1","Heavy axe, breaks walls speed 3, weight 2","Audio enhancer, locates people, weight 2","Light extinguisher, puts out fires, uses 3, weight 1","Heavy extinguisher, puts out fires, uses 10, weight 5","Smoke clearer, dissapates nearby smoke, uses 3, weight 1","Gas diffuser, neutralizes gas pipes, uses 3, weight 1","Oxygen tank, use on self or dying person, uses 2, weight 1","Long range wall wrecker, break wall from a distance, uses 1, weight 3","Temp wall, fill in a space to stop smoke,uses 3,weight 5"]
     print("You may have one head piece, one body piece, and several pieces of gear.")
     head = input("For your head piece, would you like thermal goggles/mouthpiece (4 vision, 2 breathing, 1 weight 'g') or a rebreather (1 vision, 5 breathing, 3 weight 'r':")
@@ -572,6 +574,8 @@ def select_loadout():
                 can_place_wall = True
             elif thing=="Smoke clearer":
                 can_place_cleaner = True
+            elif thing=="Oxygen tank":
+                can_give_air = True
             weight+=int((gear[int(select)].split("weight "))[1])
             try:
                 del gear[int(select)]
@@ -733,8 +737,33 @@ def drop():
     except:
         pass
     return grid
-        
-    
+
+
+
+def give_air():
+    global can_give_air
+    global air
+    global objects
+    global breaths
+    global health
+    global grid
+    global status
+    if not can_give_air:
+        return grid
+    who = input("Do you want to use the air on yourself ('y') or someone else ('s')?:")
+    if who=="s":
+        direction = input("Enter the direction to give air in:")
+        coords = select_new(direction)
+        try:
+            air[get_absolute_pos(coords[0],coords[1])]=5
+            status="Gave "+objects[get_absolute_pos(coords[0],coords[1])]+" air."
+            return grid
+        except:
+            pass
+    else:
+        breaths = breathing
+        status="Took some air."
+        return grid
 
 
 
@@ -869,6 +898,8 @@ def handler(inp):
     elif inp=="h":
         read_help=False
         return grid
+    elif inp=="t":
+        return give_air()
     else:
         return grid
 
@@ -908,10 +939,13 @@ def people_die():
             del air[key]
         elif grid[coords[0]][coords[1]]=="O":
             air[key]-=1
-            if air[key]<0:
+            if air[key]<-9:
                 status=objects[key]+" suffocated."
                 to_delete.append(key)
                 del air[key]
+            elif air[key]<0:
+                status=objects[key]+" is suffocating!"
+                visible[coords[0]][coords[1]]=10+air[key]
         else:
             air[key]=5
     for delete in to_delete:
